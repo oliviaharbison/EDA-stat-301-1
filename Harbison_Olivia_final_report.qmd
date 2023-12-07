@@ -1,0 +1,519 @@
+---
+title: "UN Agency Compilation Data: An EDA"
+subtitle: |
+  | Final Project 
+  | Data Science 1 with R (STAT 301-1)
+author: "Olivia Harbison"
+date: today
+
+format:
+  html:
+    toc: true
+    toc-depth: 5
+    toc-expand: true
+    embed-resources: true
+    toc-location: left
+    
+execute:
+  echo: false
+  warning: false
+
+from: markdown+emoji 
+---
+
+::: {.callout-tip icon="false"}
+## Github Repo Link
+
+[https://github.com/stat301-1-2023-fall/final-project-1-oliviaharbison.git](https://github.com/stat301-1-2023-fall/final-project-1-oliviaharbison.git)
+:::
+
+## Introduction
+This report is an exploratory analysis of data from the United Nations' annual State of the World's Children (SOWC) report, led by UNICEF.[^1]
+
+[^1]: UNICEF's annual [State of the World's Children](https://data.unicef.org/resources/dataset/the-state-of-the-worlds-children-2023-statistical-tables/) report for 2023.
+
+In this report, a large number of indicators are gathered via UN agencies and affiliates that report on factors influencing health and well-being for children and for adults. These indicators cover a vast range of topics, which are highlighted in the report below. This exploratory analysis will investigate data and trends for both children and adults in an attempt to pull out interesting patterns and trends present in the data.
+
+I chose to investigate this data because it aligns well with one of my majors: global health. I have done a lot of coursework regarding child health, well-being, safety, migration, nutrition, etc., so I'm very interested in seeing how this data aligns with (or contradicts) what I have learned in my classes. I'd like to explore many of the factors that go into the health of both adults and children around the globe.
+
+## Data Overview
+The format of this data is one spreadsheet with 18 different tables (each in a different sheet). Each table contains information for every country, as defined by the UN, and 13 summary categories (ex. by continent/region). This comes out to 215 observations in each table. Each table has a different number of variables, ranging from 12 to 24 different variables for a total of 309 variables. These variables are mostly numeric with a few categorical variables. 
+
+## Missing Data
+As is the case with most data collected by large international or governmental agencies, there is an extremely large amount of missingness present in this data. Country data is notoriously difficult to track, gather, and distribute, even for the United Nations and even for seemingly simple indicators, such as population. Since this dataset contains such a large range of indicators, some of them are very unusual and difficult to gather, such as the percent of children with disabilities who demonstrate foundational learning skills (missing from 169 countries). Additionally, there are many measures that are very difficult to collect data on because of stigma, fear, or a related reason that prevents transparency. An example of these can be seen by the measure that has the most missingness in the dataset: the percent of males who experienced sexual violence in their childhood. This measure was only reported on by 8 countries. Finally, another complicating factor is that it is more difficult to gather data in some countries than in others, leading to uneven missinginess among countries, as you can see in @fig-missing. The country with the least data is the Holy See, also known as Vatican City, in Rome.
+
+```{r}
+#| label: fig-missing
+#| fig.cap: Number of missing data for every country and region in the dataset.
+
+# packages & data for rest of report
+library(tidyverse)
+library(patchwork)
+library(htmlTable)
+sowc <- read_rds("data/sowc_data.rds")
+
+# missingness plot
+naniar::gg_miss_case(sowc) + labs(title = "Missingness for each country",
+                                  x = "Countries")
+```
+
+The missingness in this data could cause generalizability issues if we tried to apply any conclusions uniformly across the globe. That being said, it's always dangerous to apply any conclusions across the globe anyway, since context changes so much in different places. This is something we should keep in mind for the duration of this report and whenever dealing with global data. 
+
+
+## Migration
+
+### Background Information
+
+A person's health and wellbeing is contingent on having a stable environment where their needs can be met. One of the biggest ways this can be disrupted is through migration. When people relocate from their homes, they often experience difficulties that could impact their health, especially if they move to a new country or new region. Although many people move of their own volition, there are a variety of situations in which people are forced to move in order to find safety and economic stability.
+
+Internally displaced people (IDPs) are people who are forced to relocate from their homes due to conflict, disaster, violence, or persecution, but still remain in their country of origin. Refugees are people who are forced to relocate for the same reasons but end up outside of their country of origin. Both of these fall under the term 'forced migration.' In this section, I'd like to explore where forced migration is happening and what factors influence it. 
+
+### Where is forced migration occuring?
+
+@fig-idps is a plot of the twenty countries with the highest number of internally displaced people. As you can see, Syria has the most with 6,661,640 people. Additionally, Syria also has the highest number of refugees who have left the country, as you can see in @fig-refugees. Unsurprisingly, many of these two sets of top 20 countries are the same because they have conflicts that cause their people to either flee to different areas of the country or to leave the country. In the cases where a country has a large number of refugees who have left but a low number of IDPs, such as Venezuela, it is likely the case that the driving conflict is present throughout the entire country, so people must leave the country to find safety. On the other hand, when there is a high number of IDPs and a low number of refugees, such as Columbia, it is possible that the driving conflict is contained to specific parts of the country, so people are able to relocate within the country to find safety. 
+
+```{r}
+#| label: fig-idps
+#| fig.cap: Number of IDPs.
+
+# region code to be used for entire EDA:
+regions <- c(
+  "World",
+  "East Asia and Pacific",
+  "Europe and Central Asia",
+  "Eastern Europe and Central Asia",
+  "Western Europe",
+  "Latin America and Caribbean",
+  "Middle East and North Africa",
+  "North America",
+  "South Asia",
+  "Sub-Saharan Africa",
+  "Eastern and Southern Africa",
+  "West and Central Africa",
+  "Least developed countries"
+)
+
+
+# create df
+idps <- sowc %>%
+  select(country, idps) %>%
+  filter(idps > 0,!is.na(idps),!country %in% regions) %>%
+  slice_max(idps, n = 20) %>%
+  rename(people = idps)
+
+# graph number of IDPs
+ggplot(idps, aes(x = fct_reorder(country, people), y = people)) +
+  geom_segment(aes(
+    x = fct_reorder(country, people),
+    xend = fct_reorder(country, people),
+    y = 0,
+    yend = people
+  ),
+  color = "skyblue") +
+  geom_point(color = "blue",
+             size = 4,
+             alpha = 0.7) +
+  theme_minimal() +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.y = element_blank()
+  ) +
+  labs(title = "Top 20 Countries with Highest Number of IDPs",
+       x = NULL,
+       y = "Number of IDPs") +
+  geom_text(
+    data = idps,
+    aes(label = scales::comma(people), y = people),
+    hjust = "left",
+    nudge_y = 200000,
+    size = 3,
+    color = "grey50"
+  ) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  expand_limits(y = 7600000)
+```
+
+```{r}
+#| label: fig-refugees
+#| fig.cap: Number of Refugees.
+
+#create df
+refs <- sowc %>%
+  select(country, refugees_by_origin_country) %>%
+  filter(refugees_by_origin_country > 0,!is.na(refugees_by_origin_country), !country %in% regions) %>%
+  slice_max(refugees_by_origin_country, n = 20) %>%
+  rename(people = refugees_by_origin_country) 
+
+#graph number of refugees
+ggplot(refs, aes(x = fct_reorder(country, people), y = people)) +
+  geom_segment(aes(
+    x = fct_reorder(country, people),
+    xend = fct_reorder(country, people),
+    y = 0,
+    yend = people
+  ),
+  color = "khaki") +
+  geom_point(color = "darkorange",
+             size = 4,
+             alpha = 0.7) +
+  theme_minimal() +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.y = element_blank()
+  ) +
+  labs(title = "Top 20 Countries with Highest Number of Emigrated Refugees",
+       subtitle = "By Country of Origin",
+       x = NULL,
+       y = "Number of Refugees") +
+  geom_text(
+    data = refs,
+    aes(label = scales::comma(people), y = people),
+    hjust = "left",
+    nudge_y = 200000,
+    size = 3,
+    color = "grey50"
+  ) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  expand_limits(y = 7600000)
+```
+
+Based on these figures, it may not be surprising to see in @fig-ref-idps that the regions with the largest proportions of both refugees and IDPs in the world are in Africa and the Middle East & North Africa regions. As a majority of the world's migration driving conflicts are in those regions right now, these figures make sense. It's also interesting to look at the proportion of refugees by asylum country. As you can see in @fig-ref-idps, it seems that many refugees head towards Europe and Central Asia. Likely, many of these individuals are coming from the Middle East and North Africa, because of the proximity to Europe and Central Asia.
+
+```{r}
+#| label: fig-ref-idps
+#| fig.cap: Proportion of IDPs and Refugees by Region.
+
+# create df
+idps_reg <- sowc %>%
+  select(country, idps, refugees_by_origin_country, refugees) %>%
+  filter(
+    idps > 0,!is.na(idps),
+    country %in% regions,
+    refugees_by_origin_country > 0,!is.na(refugees_by_origin_country),!is.na(refugees),
+    refugees > 0,
+    country != "World",
+    country != "Least developed countries"
+  ) %>%
+  mutate(
+    country = fct_collapse(
+      fct(country),
+      "North America" = "North America",
+      "South America" = "Latin America and Caribbean",
+      "Europe and Central Asia" = c(
+        "Eastern Europe and Central Asia",
+        "Europe and Central Asia",
+        "Western Europe"
+      ),
+      "Africa" = c(
+        "Eastern and Southern Africa",
+        "Sub-Saharan Africa",
+        "West and Central Africa"
+      ),
+      "Middle East and North Africa" = "Middle East and North Africa",
+      "Asia" = c("South Asia", "East Asia and Pacific")
+    )
+  ) %>%
+  arrange(-idps, -refugees_by_origin_country,-refugees) %>%
+  pivot_longer(cols = -country,
+               names_to = "type",
+               values_to = "number")
+
+# graph IDPs and refugees by region
+ggplot(idps_reg, aes(
+  x = factor(
+    type,
+    levels = c("idps", "refugees_by_origin_country", "refugees")
+  ),
+  fill = country,
+  y = number
+)) +
+  geom_bar(position = "fill", stat = "identity") +
+  labs(x = NULL,
+       y = "Proportion of World Total",
+       fill = NULL,
+       title = "Proportion of IDPs and Refugees of World Total") +
+  scale_x_discrete(labels = c(
+    "IDPs",
+    "Refugees\n(by origin country)",
+    "Refugees\n(by aslyum country)"
+  )) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3")
+
+```
+
+### Is migration an effect of socioeconomic status?
+
+#### GDP
+
+If we take a look at the net migration rates of each country, we can see an interesting pattern emerge. As is visible in @fig-gdp-mig-gini (below), the countries with higher GDP per capita tend to have higher, more positive net migration rates. There seems to just be one major outlier to this trend is Qatar, with a GDP per capita of 62,088 USD but a net migration rate of -11.396 (per thousand). Although interesting, this outlier makes sense because this data is from 2021 and Qatar made major changes to their laws surrounding migrant workers. These changes included removing laws that required migrants to get permission from their employers to quit and emigrate. This forced many migrant workers to stay in Qatar who did not wish to be there; therefore, when these laws were lifted, a surge of migrants were suddenly able to leave Qatar.^[<https://www.ilo.org/infostories/en-GB/Stories/Country-Focus/world-cup-qatar#freedom>] Additionally, the high GDP per capita is not surprising since Qatar has a small population but thrives financially in the oil trade.
+
+```{r}
+#| label: fig-gdp-mig-gini
+#| fig.cap: GDP Per Capita by Net Migration Rate and Gini Coefficient.
+
+# create df
+mig <- sowc %>%
+  select(country,
+         migration_rate_per_thousand,
+         gini_coefficient,
+         gdp_per_capita) %>%
+  filter(gini_coefficient != 0, gdp_per_capita != 0,!country %in% regions)
+
+# graph migration, gini, gdp
+ggplot(mig,
+       aes(gdp_per_capita, migration_rate_per_thousand, color = gini_coefficient)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red2") +
+  theme_minimal() +
+  labs(
+    x = "GDP per capita",
+    y = "Migration Rate (per thousand)",
+    color = "Gini\nCoefficient",
+    title = "GDP per capita by Net Migration Rate",
+    subtitle = "Colored by Gini Coefficient"
+  )
+
+```
+
+#### Gini coefficient
+
+Additionally, @fig-gdp-mig-gini is colored by each country's Gini coefficient, which is a statistical measure of dispersion used commonly to represent a country's income/wealth inequality. While the Gini coefficient is calculated as a decimal between 0 and 1 (with 0 meaning perfect equality), it is typically represented multiplied by 100 as a number between 0 and 100. Thus, a lower Gini coefficient represents lower income inequality while a higher Gini coefficient represents higher income inequality. An interesting trend emerges here where it seems that countries with higher GDP per capita and higher net migration rates have lower (better) Gini coefficients, while the vice versa seems to also be true. As visible in @fig-gini, the distribution of Gini coefficients for all countries centers loosely around 32-42, with a slight right skew.
+
+```{r}
+#| label: fig-gini
+#| fig.cap: Distribution of Gini Coefficient.
+
+#create df
+gini <- sowc %>%
+  select(gini_coefficient, country) %>%
+  filter(gini_coefficient != 0,
+         !country %in% regions)
+
+#create graph
+ggplot(gini, aes(gini_coefficient)) +
+  geom_histogram(bins = 45, color = "white", fill = "olivedrab") +
+  theme_minimal() +
+  labs(title = "Distribution of Gini Coefficient",
+       x = "Gini Coefficient",
+       y = "Count") 
+```
+
+
+
+### Patterns and trends
+
+These figures provide insight into general patterns and trends present in migration and the factors that drive it. Migrants may leave their home country for a variety of reasons; however, there do seem to be global patterns in this data. For example, the countries with the highest numbers of IDPs and refugees emigrating are typically in conflict and/or have lower GDP per capita and/or a higher level of income inequality. We can infer that migration may often be driven by factors such as limited economic opportunities, social inequalities, persecution, and conflict. Additionally, we can see that many people who are forced to leave their homes try not to move very far, often remaining in their home country (IDPs) or resettling in either the same region or in a nearby region. 
+
+
+
+## Child Health
+
+### Background Information
+
+Throughout the world, children are often the some of most vulnerable populations at risk of negative consequences from adversity of all kinds. This section will explore the health related factors that may influence a child's ability to thrive.
+
+### Vaccinations
+
+One obvious and important factor in children's health is vaccinations. The dataset provides information for the percent coverage per country/region of eleven important childhood vaccinations. Below, @fig-vax-corr and @fig-corr show the correlation between vaccine prevalence and child mortality rate across all country data. All eleven vaccines are correlated with lower child mortality rates, with MCV2 and tetanus having the strongest correlations of -0.477 and -0.452, respectively.
+
+```{r}
+#| label: fig-vax-corr
+#| fig.cap: Correlation between vaccine prevalence and child mortality rate.
+
+#filter large df
+u5mort_vax <- sowc %>%
+  select(under_5_mort_rate_2021, starts_with("perc_vax"), -perc_vax_hpv_female_adol, gdp_per_capita) %>%
+  na.omit() %>%
+  rename(mort = under_5_mort_rate_2021) 
+
+#create correlation df
+corr_mort <- u5mort_vax %>%
+  select(-gdp_per_capita) %>%
+  rename(
+    mcv2 = perc_vax_mcv2,
+    tetanus = perc_vax_tetanus,
+    mcv1 = perc_vax_mcv1,
+    dtp3 = perc_vax_dtp3,
+    hepb3 = perc_vax_hepb3,
+    polio3 = perc_vax_polio3,
+    hib3 = perc_vax_hib3,
+    bcg = perc_vax_bcg,
+    dtp1 = perc_vax_dtp1,
+    rota = perc_vax_rota,
+    pcv3 = perc_vax_pcv3
+  ) %>%
+  corrr::correlate() %>%
+  corrr::focus(mort) %>%
+  mutate(rowname = factor(term, levels = term[order(-mort)]))
+
+#plot
+ggplot(corr_mort, aes(x = rowname, y = mort, fill = rowname)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_y_reverse() +
+  labs(x = "Vaccine",
+       y = "Correlation with Child Mortality Rate",
+       title = "Correlations between Vaccination Rates and Child Mortality Rates") +
+  scale_fill_brewer(palette = "Set3") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  expand_limits(y = -0.5)
+
+```
+
+```{r}
+#| label: fig-corr
+#| fig.cap: Table of vaccine and child mortality rate correlations. 
+
+corr_mort %>%
+  select(-rowname) %>%
+  rename(Vaccine = term,
+         `Mortality Rate` = mort) %>%
+  htmlTable
+
+```
+
+#### MCV2 and Tetanus
+
+A closer look at the MCV2 and tetanus vaccinations in @fig-tet-mcv2 shows that the tetanus vaccine is generally more prevalent, but the MCV2 is more strongly correlated with a smaller child mortality rate.
+
+```{r}
+#| label: fig-tet-mcv2
+#| fig.cap: Tetanus and MCV2 by Child Mortality Rate by GDP per capita.
+
+# create df
+df <- u5mort_vax %>%
+  select(mort, perc_vax_tetanus, perc_vax_mcv2, gdp_per_capita) %>%
+  pivot_longer(-c(mort, gdp_per_capita), names_to = "vax", values_to = "perc")
+
+# graph vax by mortality by gdp
+ggplot(df, aes(
+  mort,
+  y = perc,
+  color = vax,
+  size = gdp_per_capita
+)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, aes(color = vax)) +
+  scale_color_manual(labels = c("MCV2", "Tetanus"),
+                     values = c("pink2", "lightblue3")) +
+  theme_minimal() +
+  labs(
+    title = "Vaccine Rates and Child Mortality",
+    subtitle = "Size corresponding to GDP per capita",
+    x = "Under 5 Mortality Rate",
+    y = "Percent Vaccinated",
+    color = "Vaccine"
+  ) +
+  scale_size_continuous(guide = "none")
+```
+
+#### Effect of GDP?
+
+Additionally, in @fig-tet-mcv2, the size of each point corresponds to the GDP per capita in that country, with larger points meaning larger GDP per capita. The countries with higher GDP per capita tend to have higher vaccination rates for both tetanus and MCV2 and lower child mortality rates. This may be due to better access to preventative healthcare, especially for young children. 
+
+### Nutrition
+
+#### Background Information
+
+An important factor in both child health and adult health is weight. Often being outside of the target healthy weight range can indicate poor access to healthy food. Children's nutrition is often measured in stunting, which means a child is too short for their age and gender profile. If a child is stunted, it is likely because they haven't had access to enough healthy food. Another important measure of healthy nutrition is being overweight. Children who are overweight are often eating unhealthy fattening foods and are often actually malnourished because they are not getting a healthy variety of the nutrients they need.^[<https://bmcpediatr.biomedcentral.com/articles/10.1186/s12887-023-04037-7#:~:text=Double%20burden%20of%20childhood%20malnutrition,in%20many%20low%2Dincome%20settings>] 
+
+```{r}
+#| label: fig-stunt-overwt
+#| fig.cap: Percent stunting and overweight by region, age 0-4.
+
+# create df
+nutrition <- sowc %>%
+  select(country, perc_stunting_0_4, perc_overwt_0_4) %>%
+  filter(country %in% regions,
+         country != "Least developed countries",
+         country != "World") %>%
+  mutate(
+    country = fct_collapse(
+      fct(country),
+      "North America" = "North America",
+      "South America" = "Latin America and Caribbean",
+      "Europe and Central Asia" = c(
+        "Eastern Europe and Central Asia",
+        "Europe and Central Asia",
+        "Western Europe"
+      ),
+      "Africa" = c(
+        "Eastern and Southern Africa",
+        "Sub-Saharan Africa",
+        "West and Central Africa"
+      ),
+      "Middle East and North Africa" = "Middle East and North Africa",
+      "Asia" = c("South Asia", "East Asia and Pacific")
+    )) 
+
+# regional averages
+sum_nutrition <- nutrition %>%
+  group_by(country) %>%
+  summarize(
+    mean_stunting = mean(perc_stunting_0_4),
+    mean_overwt = mean(perc_overwt_0_4)
+  )
+
+# graphs for averages
+a <- ggplot(sum_nutrition,
+       aes(
+         x = mean_stunting,
+         y = fct_reorder(country, mean_stunting),
+         fill = country
+       )) +
+  geom_bar(stat = "identity") +
+  labs(title = "Percent Stunting",
+       x = "Percent stunting\n(Age 0-4)",
+       y = "Region") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(legend.position = "none")
+
+b <- ggplot(sum_nutrition,
+       aes(
+         x = mean_overwt,
+         y = fct_reorder(country, mean_overwt),
+         fill = country
+       )) +
+  geom_bar(stat = "identity") +
+  labs(title = "Percent Overweight",
+       x = "Percent overweight\n(Age 0-4)",
+       y = NULL) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(legend.position = "none")
+
+# patchwork together
+a + b
+```
+
+#### Stunting and Overweight in Ages 0-4
+
+Different regions have different areas of concern in regards to stunting and overweightness, as evident in @fig-stunt-overwt. Stunting is more prevalent overall, with the highest prevalence in Africa and the lowest in North America. On the other hand, the Middle East and North Africa region has the highest prevalence of overweight children, followed by North America, with Africa having the lowest prevalence. This shows that different regions have different patterns of nutritional concern. For example, North America has a very low stunting prevalence but a very high overweight prevalence. This could be partially due to there being many options for very inexpensive food, thus limiting stunting, but the food is very unhealthy and fattening, thus increasing obesity. 
+
+### Patterns and trends
+
+We can see trends in the data that vaccinations and access to healthy food play a substantial role in child health. In general, the health of a child is highly dependent on the environment that the child is raised in, both within their home and within their greater communities (town, country, and region). There are patterns that present regionally, as shown in the above figures, that indicate how the health and lives of children born in different parts of the world may differ.
+
+
+
+## Conclusion
+
+In order for the UN to make decisions, begin or end initiatives, and represent a unifying global initiative, they must collect and analyze a large sum of data. This dataset represents a large amount of the most up to date metrics on the health and wellbeing of people across the globe; however, the most prevalent pattern seen throughout is that no specific metrics can capture the complex and intertwined factors that dictate a person's health and wellbeing. These metrics are helpful in analyses and decision-making but must be viewed within their broader context in order to be actionable. 
+
+
+## References
+
+Sahiledengle, B., Mwanri, L., Kumie, A., Beressa, G., Atlaw, D., Tekalegn, Y., Zenbaba, D., Desta, F., Kene, C., Seyoum, K., Gomora, D., Woldeyohannes, D., & Agho, K. E. (2023). The coexistence of stunting and overweight or obesity in Ethiopian children: Prevalence, trends and associated factors. BMC Pediatrics, 23(1), 218. https://doi.org/10.1186/s12887-023-04037-7
+
+The State of the World’s Children 2023: Statistical tables. (n.d.). UNICEF DATA. Retrieved November 29, 2023, from https://data.unicef.org/resources/dataset/the-state-of-the-worlds-children-2023-statistical-tables/
+
+What has changed for migrant workers in Qatar? (n.d.). Retrieved November 29, 2023, from https://www.ilo.org/infostories/en-GB/Stories/Country-Focus/world-cup-qatar#freedom
+
+
